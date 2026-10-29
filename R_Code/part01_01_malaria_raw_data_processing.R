@@ -13,11 +13,60 @@ library(openxlsx)
 library(stringr)
 library(lubridate)
 
+
 # -----------------------------
-# Load data
+# Set working directory
 # -----------------------------
-mal_data_path <- "C:/Users/17034/Downloads/GSU PhD/Prof. Kirpich/Datasets/New datasets/Malaria/Final/Latest Malaria dataset/wmr2024_annex_4f.xlsx"
-setwd(dirname(mal_data_path))
+setwd(
+  "C:/Users/17034/Downloads/GSU PhD/Prof. Kirpich/Datasets/GitHub Files/Time-Series-Analysis-of-Malaria/R_Code"
+)
+
+# Verify working directory
+cat("Working directory:", getwd(), "\n")
+
+# -----------------------------
+# Define file paths
+# -----------------------------
+
+# Input data: Raw_Data folder
+mal_data_path <- "../Raw_Data/wmr2024_annex_4f.xlsx"
+
+# Output data: R_Data folder (.RData)
+mal_rdata_path <- "../R_Data/Malaria_TimeSeries_Bycountry.RData"
+
+# Output data: R_Output folder (Excel)
+mal_excel_path <- "../R_Output/Malaria_TimeSeries_Bycountry.xlsx"
+
+
+# -----------------------------
+#  Verify input file
+# -----------------------------
+if (!file.exists(mal_data_path)) {
+  stop(
+    "Input file not found: ",
+    normalizePath(mal_data_path, mustWork = FALSE),
+    "\nCheck that the script is running from the R_Code directory."
+  )
+}
+
+
+# -----------------------------
+# Create output directories
+# -----------------------------
+rdata_dir <- dirname(mal_rdata_path)
+excel_dir <- dirname(mal_excel_path)
+
+if (!dir.exists(rdata_dir)) {
+  dir.create(rdata_dir, recursive = TRUE)
+}
+
+if (!dir.exists(excel_dir)) {
+  dir.create(excel_dir, recursive = TRUE)
+}
+
+# -----------------------------
+# Load raw data
+# -----------------------------
 
 mal_raw <- read_excel(mal_data_path, skip = 2)
 
@@ -138,7 +187,7 @@ for(i in seq_along(countries_final)) {
   writeData(wb, safe_sheet_name, country_data)
 }
 
-saveWorkbook(wb, "Malaria_TimeSeries_Bycountry.xlsx", overwrite = TRUE)
+saveWorkbook(wb, file = mal_excel_path, overwrite = TRUE)
 cat("\n✅ SUCCESS: Full dataset exported correctly with lowercase names!\n")
 
 

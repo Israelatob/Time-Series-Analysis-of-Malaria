@@ -23,27 +23,37 @@ for (pkg in required_pkgs) {
 }
 
 ############################################################
-## ---- Paths & Data ----
+## ---- Settings & Path Declarations ----
 ############################################################
-setwd("C:/Users/17034/Downloads/GSU PhD/Prof. Kirpich/Datasets/New datasets/Malaria/Final")
 
-data_file     <- "malaria_data_all.RData"
-plots_dir     <- "Plots"
+# Set working directory to project R_Code directory
+base_dir <- "C:/Users/17034/Downloads/GSU PhD/Prof. Kirpich/Datasets/GitHub Files/Time-Series-Analysis-of-Malaria/R_Code"
+if (dir.exists(base_dir)) setwd(base_dir)
+
+# Define clean relative paths from R_Code
+dir_data   <- file.path("..", "R_Data")
+dir_plots  <- file.path("..", "Plots")
+dir_output <- file.path("..", "R_Output")
+
+# Automatically create output directories if missing
+if (!dir.exists(dir_plots))  dir.create(dir_plots, recursive = TRUE)
+if (!dir.exists(dir_output)) dir.create(dir_output, recursive = TRUE)
+
 graph_suffix  <- "_malaria"
 hclust_method <- "average"
 
+# Load the input dataset relative to dir_data
+data_file <- file.path(dir_data, "malaria_data_all.RData")
 load(data_file)
 stopifnot(exists("malaria_data_all"))
-
-if (!dir.exists(plots_dir)) dir.create(plots_dir)
 
 cat("Data loaded:", dim(malaria_data_all), "\n")
 
 ############################################################
 ## ---- Countries & Pairs ----
 ############################################################
-countries    <- sort(unique(malaria_data_all$country))
-n_countries  <- length(countries)
+countries   <- sort(unique(malaria_data_all$country))
+n_countries <- length(countries)
 
 pairs_frame <- as.data.frame(
   combinations(n_countries, 2, countries),
@@ -84,9 +94,6 @@ calculate_distance <- function(c1, c2, metric,
   ## ---- CCD: converted to distance ----
   if (method == "ccd") {
     acf_vals <- max(na.omit(ccf(x, y, plot = FALSE)$acf))
-    #acf_vals <- acf_vals[-which.max(acf_vals)]   # remove lag 0
-    #sim <- max(acf_vals, na.rm = TRUE)
-    #sim <- max(min(sim, 1), -1)
     return(1 - acf_vals)
   }
 }
@@ -139,7 +146,6 @@ build_distance_matrix <- function(dist_vec, pairs, countries) {
   mat
 }
 
-head(build_distance_matrix)
 ############################################################
 ## ---- Build Distance Matrices ----
 ############################################################
@@ -157,7 +163,10 @@ for (m in metrics) {
   }
 }
 
-save(distance_matrices, file = "distance_matrices.RData")
+# Save generated matrices into R_Data folder
+dist_mat_path <- file.path(dir_data, "distance_matrices.RData")
+save(distance_matrices, file = dist_mat_path)
+cat("Distance matrices saved to:", normalizePath(dist_mat_path, mustWork = FALSE), "\n")
 
 ############################################################
 ## ---- Helper function: padded plot limits ----
@@ -168,128 +177,32 @@ pad_limits <- function(x, pad = 0.15) {
   c(r[1] - pad * d, r[2] + pad * d)
 }
 
-
-
 ############################################################
-## ---- MDS: Cases & Deaths (CCD - Side-by-Side) ----
+## ---- CCD Clustering: Side-by-Side ----
 ############################################################
+pdf_path <- file.path(dir_plots, paste0("malaria_hclust_ccd_both", graph_suffix, ".pdf"))
+pdf(pdf_path, width = 16, height = 10)
 
-# --- DEFINE THE HELPER FUNCTION FIRST ---
-create_mds_panel <- function(data, xlims, ylims, color, title, panel_label) {
-  # Calculate aspect ratio from the data ranges to ensure true square
-  x_range <- diff(xlims)
-  y_range <- diff(ylims)
-  
-  # Determine which dimension needs to be expanded to make square
-  if (x_range > y_range) {
-    # Expand y limits to match x range
-    y_mid <- mean(ylims)
-    ylims <- y_mid + c(-1, 1) * x_range/2
-  } else {
-    # Expand x limits to match y range
-    x_mid <- mean(xlims)
-    xlims <- x_mid + c(-1, 1) * y_range/2
-  }
-  
-  ggplot(data, aes(x, y, label = label)) +
-    geom_point(pch = 19, colour = color, size = 3, stroke = 0) +
-    geom_text_repel(
-      size = 3.5, fontface = "bold", colour = color,
-      max.overlaps = Inf, box.padding = 0.4, point.padding = 0.4,
-      segment.colour = color, segment.size = 0.3,
-      min.segment.length = 0, direction = "both", seed = 123
-    ) +
-    coord_fixed(ratio = 1, xlim = xlims, ylim = ylims, expand = FALSE) +
-    labs(title = title) +
-    theme_minimal() +
-    theme(
-      plot.title = element_text(size = 14, face = "bold", hjust = 0.5, margin = margin(b = 10)),
-      panel.border = element_rect(colour = "black", fill = NA, linewidth = 1.3),
-      plot.background = element_rect(fill = "white", colour = NA),
-      panel.background = element_rect(fill = "white", colour = NA),
-      panel.grid = element_blank(),
-      axis.text = element_blank(),
-      axis.title = element_blank(),
-      axis.ticks = element_blank(),
-      aspect.ratio = 1,
-      plot.margin = margin(20, 5, 20, 5)
-    ) +
-    annotate("text", x = xlims[1] + 0.02 * diff(xlims), 
-             y = ylims[2] - 0.02 * diff(ylims), 
-             label = panel_label, size = 7, fontface = "bold", 
-             hjust = 0, vjust = 1)
-}
+hc_cases_ccd  <- hclust(as.dist(distance_matrices$incidence_rate_ccd), method = hclust_method)
+hc_deaths_ccd <- hclust(as.dist(distance_matrices$death_rate_ccd), method = hclust_method)
 
-# Calculate MDS coordinates
-mds_cases <- cmdscale(as.dist(distance_matrices$incidence_rate_ccd), k = 2)
-mds_deaths <- cmdscale(as.dist(distance_matrices$death_rate_ccd), k = 2)
+par(mfrow = c(1, 2), mar = c(8, 4, 4, 2))
 
-xlim_cases <- pad_limits(mds_cases[,1], pad = 0.15)
-ylim_cases <- pad_limits(mds_cases[,2], pad = 0.15)
-xlim_deaths <- pad_limits(mds_deaths[,1], pad = 0.15)
-ylim_deaths <- pad_limits(mds_deaths[,2], pad = 0.15)
+plot(hc_cases_ccd,
+     main = "CCD Clustering – Malaria Incidence Rate (Average)",
+     sub  = "", cex = 0.7, hang = 1,
+     xlab = "", ylab = "", xaxt = "n", yaxt = "n", asp = 1)
+mtext("A", side = 3, line = 1, adj = 0, cex = 2, font = 2)
 
-# Convert to data frames - USE THE SAME VARIABLE NAMES YOU CALCULATED
-mds_cases_df <- data.frame(
-  x = mds_cases[,1], y = mds_cases[,2], 
-  label = rownames(mds_cases)
-)
-mds_deaths_df <- data.frame(
-  x = mds_deaths[,1], y = mds_deaths[,2], 
-  label = rownames(mds_deaths)
-)
+plot(hc_deaths_ccd,
+     main = "CCD Clustering – Malaria Death Rate (Average)",
+     sub  = "", cex = 0.7, hang = 0.5,
+     xlab = "", ylab = "", xaxt = "n", yaxt = "n", asp = 1)
+mtext("B", side = 3, line = 1, adj = 0, cex = 2, font = 2)
 
-# REMOVE the conflicting line - you already defined mds_cases_df above
-# mds_cases_ccd_df <- data.frame(x = mds_cases_ccd[,1], y = mds_cases_ccd[,2], label = rownames(mds_cases_ccd))
-# mds_deaths_ccd_df <- data.frame(x = mds_deaths_ccd[,1], y = mds_deaths_ccd[,2], label = rownames(mds_deaths_ccd))
-
-# Create panels with adjusted square limits
-p1 <- create_mds_panel(
-  data = mds_cases_df,      # Use mds_cases_df
-  xlims = xlim_cases,       # Use xlim_cases
-  ylims = ylim_cases,       # Use ylim_cases
-  color = "royalblue3",
-  title = "Multidimensional Scaling of Malaria Incidence Rate (CCD Distance)",
-  panel_label = "A"
-)
-
-p2 <- create_mds_panel(
-  data = mds_deaths_df,     # Use mds_deaths_df
-  xlims = xlim_deaths,      # Use xlim_deaths
-  ylims = ylim_deaths,      # Use ylim_deaths
-  color = "red3",
-  title = "Multidimensional Scaling of Malaria Death Rate (CCD Distance)",
-  panel_label = "B"
-)
-
-# Combine with proper square layout
-combined_ccd <- p1 + plot_spacer() + p2 +
-  plot_layout(
-    ncol = 3,
-    widths = c(1, 0.005, 1),
-    heights = 1
-  )
-
-# Save with proper dimensions
-ggsave(
-  filename = file.path(plots_dir, paste0("malaria_mds_ccd_both", graph_suffix, ".pdf")),
-  plot = combined_ccd,
-  width = 16,
-  height = 8,
-  units = "in",
-  bg = "white",
-  device = cairo_pdf
-)
-
-
-
-
-
-
-
-
+dev.off()
 
 ############################################################
 ## ---- Done ----
 ############################################################
-cat("✅ Analysis complete. All plots saved in:", plots_dir, "\n")
+cat("✅ Analysis complete. All plots saved in:", normalizePath(dir_plots, mustWork = FALSE), "\n")

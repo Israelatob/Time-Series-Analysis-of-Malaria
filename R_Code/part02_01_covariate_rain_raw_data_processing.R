@@ -1,8 +1,7 @@
-#-----------------------------
-#Clear environment
-#-----------------------------
+# -----------------------------
+# Clear environment
+# -----------------------------
 rm(list = ls(all = TRUE))
-
 
 # -----------------------------
 # Libraries
@@ -13,16 +12,29 @@ library(tidyr)
 library(writexl)
 
 # -----------------------------
-# Load Data
+# Set working directory
 # -----------------------------
-rain_data_path <- "C:/Users/17034/Downloads/GSU PhD/Prof. Kirpich/Datasets/New datasets/Malaria/Final/Additional datasets/Covariates/Average Annual Rainfall.csv"
+setwd(
+  "C:/Users/17034/Downloads/GSU PhD/Prof. Kirpich/Datasets/GitHub Files/Time-Series-Analysis-of-Malaria/R_Code"
+)
 
-# Set working directory to the folder containing the CSV
-setwd(dirname(rain_data_path))
-getwd()  # confirm
+# Verify working directory
+cat("Working directory:", getwd(), "\n")
 
-# Read the CSV (skip=4 is standard for World Bank files)
-rain_raw <- read_csv(rain_data_path, skip = 4)
+# -----------------------------
+# Input & Output File Paths
+# -----------------------------
+# Input data
+rain_input_file <- "../Raw_Data/Average Annual Rainfall.csv"
+
+# Output files
+rain_rdata_path <- "../R_Data/rain_summary.RData"
+rain_excel_path <- "../R_Output/rain_output.xlsx"
+
+# -----------------------------
+# Load Rainfall Data
+# -----------------------------
+rain_raw <- read_csv(rain_input_file, skip = 4)
 
 # -----------------------------
 # Reshape and Clean
@@ -36,9 +48,10 @@ rain_long <- rain_raw %>%
   ) %>%
   mutate(Year = as.numeric(Year))
 
-# Standardize country names to match your selection list
+# Standardize country names to match countries_to_select
 rain_long$Country <- gsub("Congo, Dem. Rep.", "DRC", rain_long$Country)
 rain_long$Country <- gsub("Congo, Rep.", "Congo", rain_long$Country)
+rain_long$Country <- gsub("Cape Verde", "Cabo Verde", rain_long$Country)
 rain_long$Country <- gsub("Cote d'Ivoire", "Côte d'Ivoire", rain_long$Country)
 rain_long$Country <- gsub("Somalia, Fed. Rep.", "Somalia", rain_long$Country)
 rain_long$Country <- gsub("Gambia, The", "Gambia", rain_long$Country)
@@ -59,7 +72,7 @@ countries_to_select <- c(
 )
 
 # -----------------------------
-# Filter and Reshape back to Wide (This fulfills your 2000-2023 request)
+# Filter (2000-2023) and Reshape to Wide
 # -----------------------------
 rain_data_selected_fixed <- rain_long %>%
   filter(
@@ -72,36 +85,45 @@ rain_data_selected_fixed <- rain_long %>%
   arrange(Country)
 
 # -----------------------------
-# Compute summary statistics
+# Compute Summary Statistics by Country (Mean & Median)
 # -----------------------------
 year_cols <- grep("^[0-9]{4}$", names(rain_data_selected_fixed), value = TRUE)
 
-rain_summary_by_country <- rain_data_selected_fixed %>%
+rain_summary <- rain_data_selected_fixed %>%
   rowwise() %>%
   mutate(
-    min_rain = min(c_across(all_of(year_cols)), na.rm = TRUE),
-    max_rain = max(c_across(all_of(year_cols)), na.rm = TRUE),
-    sum_rain = sum(c_across(all_of(year_cols)), na.rm = TRUE),
-    n = sum(!is.na(c_across(all_of(year_cols)))),
-    median_rain = median(c_across(all_of(year_cols)), na.rm = TRUE),
-    mean_rain = ifelse(n > 0, sum_rain / n, NA)
+    min_rain    = round(min(c_across(all_of(year_cols)), na.rm = TRUE), 3),
+    max_rain    = round(max(c_across(all_of(year_cols)), na.rm = TRUE), 3),
+    n_years     = sum(!is.na(c_across(all_of(year_cols)))),
+    mean_rain   = round(mean(c_across(all_of(year_cols)), na.rm = TRUE), 3),
+    median_rain = round(median(c_across(all_of(year_cols)), na.rm = TRUE), 3)
   ) %>%
   ungroup() %>%
-  select(Country, min_rain, max_rain, sum_rain, n, mean_rain, median_rain)
+  select(Country, n_years, min_rain, max_rain, mean_rain, median_rain)
 
+# View the summary output
+print(head(rain_summary))
 
 # -----------------------------
-# Save outputs
+# Create output directories if they don't exist
 # -----------------------------
-save(rain_data_selected_fixed, file = "rain_data_selected_fixed.RData")
-save(countries_to_select, file = "ssa_raincountries.RData")
-save(rain_summary_by_country, file = "rain_summary.RData")
+if (!dir.exists("../R_Data"))   dir.create("../R_Data", recursive = TRUE)
+if (!dir.exists("../R_Output")) dir.create("../R_Output", recursive = TRUE)
 
+# -----------------------------
+# Save ONLY the summary outputs
+# -----------------------------
+# 1. Save RData containing ONLY rain_summary
+save(rain_summary, file = rain_rdata_path)
+
+# 2. Save Excel containing ONLY rain_summary
 write_xlsx(
   list(
-    "Rainfall_Data" = rain_data_selected_fixed,
-    "Summary" = rain_summary_by_country
+    "rain_summary" = rain_summary
   ),
-  "rain_output.xlsx"
+  path = rain_excel_path
 )
 
+cat("\nSummary files successfully created:\n")
+cat(" - RData: ", rain_rdata_path, "\n")
+cat(" - Excel: ", rain_excel_path, "\n")

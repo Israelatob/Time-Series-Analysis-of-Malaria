@@ -12,18 +12,32 @@ library(tidyr)
 library(writexl)
 
 # -----------------------------
-# Load Latitude/Longitude data
+# Set working directory
 # -----------------------------
-# Path to your CSV file
-latlong_data_path <- "C:/Users/17034/Downloads/GSU PhD/Prof. Kirpich/Datasets/New datasets/Malaria/Final/Additional datasets/Covariates/average-latitude-longitude-countries.csv"
+setwd(
+  "C:/Users/17034/Downloads/GSU PhD/Prof. Kirpich/Datasets/GitHub Files/Time-Series-Analysis-of-Malaria/R_Code"
+)
 
-# Set working directory to the folder containing the file
-if(file.exists(latlong_data_path)) {
-  setwd(dirname(latlong_data_path))
-}
+# Verify working directory
+cat("Working directory:", getwd(), "\n")
 
-# Load the CSV file
-latlong_raw <- read_csv(latlong_data_path)
+# -----------------------------
+# Input & Output File Paths
+# -----------------------------
+# Input data
+lat_input_file <- "../Raw_Data/country_centroids_all.csv"
+
+# Output files
+lat_rdata_path <- "../R_Data/lat_summary.RData"
+lat_excel_path <- "../R_Output/lat_output.xlsx"
+
+# -----------------------------
+# Load Latitude/Longitude Data
+# -----------------------------
+lat_raw <- read_csv(lat_input_file)
+
+lat_raw <- lat_raw %>%
+  rename(Country = SHORT_NAME)
 
 # -----------------------------
 # Define Sub-Saharan Africa countries
@@ -43,42 +57,48 @@ countries_to_select <- c(
 # -----------------------------
 # 1. Standardize names to match your countries_to_select list
 # 2. Filter for SSA countries
-# 3. Sort alphabetically
-latlong_summary_by_country <- latlong_raw %>%
+# 3. Keep essential columns and sort alphabetically
+lat_summary <- lat_raw %>%
   mutate(Country = case_when(
     Country == "Cape Verde" ~ "Cabo Verde",
     Country == "Cote d'Ivoire" ~ "Côte d'Ivoire",
-    Country == "Tanzania, United Republic of" ~ "Tanzania",
-    Country == "Congo, The Democratic Republic of the" ~ "DRC",
+    Country == "Democratic Republic of the Congo" ~ "DRC",
     Country == "Swaziland" ~ "Eswatini",
-    Country == "Ethopia" ~ "Ethiopia",
+    Country == "Republic of the Congo" ~ "Congo",
     TRUE ~ Country
   )) %>%
   filter(Country %in% countries_to_select) %>%
-  select(Country, Latitude, Longitude) %>%  # Keeping only essential columns
+  select(Country, LAT) %>%  # Keeping essential columns
   arrange(Country)
 
 # -----------------------------
 # View Results
 # -----------------------------
 print("First few rows of processed SSA Latitude/Longitude data:")
-print(head(latlong_summary_by_country))
+print(head(lat_summary))
 
-print(paste("Number of SSA countries matched:", nrow(latlong_summary_by_country)))
+print(paste("Number of SSA countries matched:", nrow(lat_summary)))
 
 # -----------------------------
-# Save outputs
+# Create output directories if they don't exist
 # -----------------------------
-# Save as RData for modeling
-save(latlong_summary_by_country, file = "latlong_summary.RData")
-save(countries_to_select, file = "ssa_latlong_countries.RData")
+if (!dir.exists("../R_Data"))   dir.create("../R_Data", recursive = TRUE)
+if (!dir.exists("../R_Output")) dir.create("../R_Output", recursive = TRUE)
 
-# Save as Excel for external review
+# -----------------------------
+# Save ONLY the summary outputs
+# -----------------------------
+# 1. Save RData containing ONLY lat_summary
+save(lat_summary, file = lat_rdata_path)
+
+# 2. Save Excel containing ONLY lat_summary
 write_xlsx(
   list(
-    "Lat_Long_Summary" = latlong_summary_by_country
+    "lat_summary" = lat_summary
   ),
-  "latlong_output.xlsx"
+  path = lat_excel_path
 )
 
-print("Files 'latlong_summary.RData' and 'latlong_output.xlsx' saved successfully!")
+cat("\nSummary files successfully created:\n")
+cat(" - RData: ", lat_rdata_path, "\n")
+cat(" - Excel: ", lat_excel_path, "\n")

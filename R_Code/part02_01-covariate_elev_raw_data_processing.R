@@ -12,17 +12,29 @@ library(tidyr)
 library(writexl)
 
 # -----------------------------
-# Load Elevation data
+# Set working directory
 # -----------------------------
-elev_data_path <- "C:/Users/17034/Downloads/GSU PhD/Prof. Kirpich/Datasets/New datasets/Malaria/Final/Additional datasets/Covariates/Elevation.xlsx"
+setwd(
+  "C:/Users/17034/Downloads/GSU PhD/Prof. Kirpich/Datasets/GitHub Files/Time-Series-Analysis-of-Malaria/R_Code"
+)
 
-if(file.exists(elev_data_path)) {
-  setwd(dirname(elev_data_path))
-}
+# Verify working directory
+cat("Working directory:", getwd(), "\n")
 
-# CHANGE: Load the "Average Elevation" sheet instead of sheet 1
-# This sheet contains all 46 countries.
-elev_raw <- read_excel(elev_data_path, sheet = "Average Elevation")
+# -----------------------------
+# Input & Output File Paths
+# -----------------------------
+# Input data
+elev_input_file <- "../Raw_Data/Elevation.xlsx"
+
+# Output files
+elev_rdata_path <- "../R_Data/elev_summary.RData"
+elev_excel_path <- "../R_Output/elev_output.xlsx"
+
+# -----------------------------
+# Load Elevation Data
+# -----------------------------
+elev_raw <- read_excel(elev_input_file, sheet = "Average Elevation")
 
 # -----------------------------
 # Define Sub-Saharan Africa countries
@@ -40,7 +52,7 @@ countries_to_select <- c(
 # -----------------------------
 # Clean and Filter Elevation Data
 # -----------------------------
-elev_summary_by_country <- elev_raw %>%
+elev_summary <- elev_raw %>%
   # 1. Standardize column names for this specific sheet
   rename(elevation = Elevation) %>% 
   # 2. Fix hidden characters and trim spaces
@@ -54,7 +66,7 @@ elev_summary_by_country <- elev_raw %>%
     Country == "Swaziland" ~ "Eswatini",
     TRUE ~ Country
   )) %>%
-  # 4. Filter for your target list
+  # 4. Filter for target list
   filter(Country %in% countries_to_select) %>%
   select(Country, elevation) %>%
   arrange(Country)
@@ -62,13 +74,29 @@ elev_summary_by_country <- elev_raw %>%
 # -----------------------------
 # View Results
 # -----------------------------
-print(paste("Total countries matched:", nrow(elev_summary_by_country)))
-print(head(elev_summary_by_country))
+print(paste("Total countries matched:", nrow(elev_summary)))
+print(head(elev_summary))
 
 # -----------------------------
-# Save outputs
+# Create output directories if they don't exist
 # -----------------------------
-save(elev_summary_by_country, file = "elev_summary.RData")
-write_xlsx(list("Elevation_Summary" = elev_summary_by_country), "elev_output.xlsx")
+if (!dir.exists("../R_Data"))   dir.create("../R_Data", recursive = TRUE)
+if (!dir.exists("../R_Output")) dir.create("../R_Output", recursive = TRUE)
 
-print("Files saved successfully! You should now have all 46 countries.")
+# -----------------------------
+# Save ONLY the summary outputs
+# -----------------------------
+# 1. Save RData containing ONLY elev_summary
+save(elev_summary, file = elev_rdata_path)
+
+# 2. Save Excel containing ONLY elev_summary
+write_xlsx(
+  list(
+    "elev_summary" = elev_summary
+  ),
+  path = elev_excel_path
+)
+
+cat("\nSummary files successfully created:\n")
+cat(" - RData: ", elev_rdata_path, "\n")
+cat(" - Excel: ", elev_excel_path, "\n")

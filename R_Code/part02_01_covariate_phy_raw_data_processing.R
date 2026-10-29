@@ -1,4 +1,9 @@
 # -----------------------------
+# Clear environment
+# -----------------------------
+rm(list = ls(all = TRUE))
+
+# -----------------------------
 # Libraries
 # -----------------------------
 library(readr)
@@ -7,16 +12,29 @@ library(tidyr)
 library(writexl)
 
 # -----------------------------
-# Load Data
+# Set working directory
 # -----------------------------
-phy_data_path <- "C:/Users/17034/Downloads/GSU PhD/Prof. Kirpich/Datasets/New datasets/Malaria/Final/Additional datasets/Covariates/API_SH.MED.PHYS.ZS_DS2_en_csv_v2_1914.csv"
+setwd(
+  "C:/Users/17034/Downloads/GSU PhD/Prof. Kirpich/Datasets/GitHub Files/Time-Series-Analysis-of-Malaria/R_Code"
+)
 
-# Set working directory to the folder containing the CSV
-setwd(dirname(phy_data_path))
-getwd()  # confirm
+# Verify working directory
+cat("Working directory:", getwd(), "\n")
 
-# Read the CSV (skip=4 is standard for World Bank files)
-phy_raw <- read_csv(phy_data_path, skip = 4)
+# -----------------------------
+# Input & Output File Paths
+# -----------------------------
+# Input data
+phy_input_file <- "../Raw_Data/API_SH.MED.PHYS.ZS_DS2_en_csv_v2_1914.csv"
+
+# Output files
+phy_rdata_path <- "../R_Data/phy_summary.RData"
+phy_excel_path <- "../R_Output/phy_output.xlsx"
+
+# -----------------------------
+# Load World Bank Physician Data
+# -----------------------------
+phy_raw <- read_csv(phy_input_file, skip = 4)
 
 # -----------------------------
 # Reshape and Clean
@@ -30,7 +48,7 @@ phy_long <- phy_raw %>%
   ) %>%
   mutate(Year = as.numeric(Year))
 
-# Standardize country names to match your selection list
+# Standardize country names to match countries_to_select
 phy_long$Country <- gsub("Congo, Dem. Rep.", "DRC", phy_long$Country)
 phy_long$Country <- gsub("Congo, Rep.", "Congo", phy_long$Country)
 phy_long$Country <- gsub("Cape Verde", "Cabo Verde", phy_long$Country)
@@ -54,7 +72,7 @@ countries_to_select <- c(
 )
 
 # -----------------------------
-# Filter and Reshape back to Wide (This fulfills your 2000-2023 request)
+# Filter (2000-2023) and Reshape to Wide
 # -----------------------------
 phy_data_selected_fixed <- phy_long %>%
   filter(
@@ -67,39 +85,45 @@ phy_data_selected_fixed <- phy_long %>%
   arrange(Country)
 
 # -----------------------------
-# Compute summary statistics
+# Compute Summary Statistics by Country (Mean & Median)
 # -----------------------------
 year_cols <- grep("^[0-9]{4}$", names(phy_data_selected_fixed), value = TRUE)
 
-phy_summary_by_country <- phy_data_selected_fixed %>%
+phy_summary <- phy_data_selected_fixed %>%
   rowwise() %>%
   mutate(
-    min_phy= min(c_across(all_of(year_cols)), na.rm = TRUE),
-    max_phy = max(c_across(all_of(year_cols)), na.rm = TRUE),
-    sum_phy = sum(c_across(all_of(year_cols)), na.rm = TRUE),
-    n = sum(!is.na(c_across(all_of(year_cols)))),
-    median_phy = median(c_across(all_of(year_cols)), na.rm = TRUE),
-    mean_phy = ifelse(n > 0, sum_phy / n, NA)
+    min_phy    = round(min(c_across(all_of(year_cols)), na.rm = TRUE), 3),
+    max_phy    = round(max(c_across(all_of(year_cols)), na.rm = TRUE), 3),
+    n_years    = sum(!is.na(c_across(all_of(year_cols)))),
+    mean_phy   = round(mean(c_across(all_of(year_cols)), na.rm = TRUE), 3),
+    median_phy = round(median(c_across(all_of(year_cols)), na.rm = TRUE), 3)
   ) %>%
   ungroup() %>%
-    select(Country, min_phy, max_phy, sum_phy, n, mean_phy, median_phy)
+  select(Country, n_years, min_phy, max_phy, mean_phy, median_phy)
 
-
-
-# View the first few rows
-head(phy_summary_by_country)
+# View the summary output
+print(head(phy_summary))
 
 # -----------------------------
-# Save outputs
+# Create output directories if they don't exist
 # -----------------------------
-save(phy_data_selected_fixed, file = "phy_data_selected_fixed.RData")
-save(countries_to_select, file = "ssa_phycountries.RData")
-save(phy_summary_by_country, file = "phy_summary.RData")
+if (!dir.exists("../R_Data"))   dir.create("../R_Data", recursive = TRUE)
+if (!dir.exists("../R_Output")) dir.create("../R_Output", recursive = TRUE)
 
+# -----------------------------
+# Save ONLY the summary outputs
+# -----------------------------
+# 1. Save RData containing ONLY phy_summary
+save(phy_summary, file = phy_rdata_path)
+
+# 2. Save Excel containing ONLY phy_summary
 write_xlsx(
   list(
-    "Physician_Data" = phy_data_selected_fixed,
-    "Summary" = phy_summary_by_country
+    "phy_summary" = phy_summary
   ),
-  "phy_output.xlsx"
+  path = phy_excel_path
 )
+
+cat("\nSummary files successfully created:\n")
+cat(" - RData: ", phy_rdata_path, "\n")
+cat(" - Excel: ", phy_excel_path, "\n")
