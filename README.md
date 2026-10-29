@@ -1,5 +1,4 @@
 # Time-Series-Analysis-of-Malaria
-# Time-Series Analysis of Malaria
 
 Clustering-based time-series analysis of malaria incidence and mortality trends across **46 Sub-Saharan African countries from 2000–2023**.
 
